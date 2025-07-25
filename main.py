@@ -11,7 +11,7 @@ def main():
     """
     load_dotenv()
     print("Environment variables loaded")
-    print(f"Server will run on: http://127.0.0.1:7860")
+    print("Server will run on: http://127.0.0.1:7860")
     print(f"Admin username: {os.getenv('ADMIN_USERNAME', 'admin')}")
     print(f"Environment: {os.getenv('ENVIRONMENT', 'development')}")
     # Launch the Gradio app
