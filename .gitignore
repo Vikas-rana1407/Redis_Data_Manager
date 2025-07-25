@@ -4,3 +4,4 @@ app.log
 .gradio
 pycaches/
 __pycache__/
+data/
