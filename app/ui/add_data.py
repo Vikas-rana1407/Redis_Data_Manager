@@ -1,15 +1,15 @@
 import gradio as gr
 
-def add_data_book_ui():
-    with gr.TabItem("Book"):
-        book_file = gr.File(label="Upload Book CSV")
-        book_upload_btn = gr.Button("Process & Save Books", variant="primary")
-        book_status = gr.Markdown()
-        return book_file, book_upload_btn, book_status
+def render_add_data_tab():
+    with gr.Column():
+        with gr.Tab("Book"):
+            gr.Markdown("### Upload Book CSV")
+            csv_input = gr.File(file_types=[".csv"], label="Upload CSV")
+            upload_book_btn = gr.Button("Process & Save Book", variant="primary")
+            book_output = gr.Textbox(label="Upload Status")
 
-def add_data_video_ui():
-    with gr.TabItem("Video"):
-        video_url = gr.Textbox(label="YouTube URL")
-        video_add_btn = gr.Button("Process & Save Video", variant="primary")
-        video_status = gr.Markdown()
-        return video_url, video_add_btn, video_status
+        with gr.Tab("Video"):
+            gr.Markdown("### Upload YouTube Video")
+            youtube_input = gr.Textbox(label="YouTube URL")
+            upload_video_btn = gr.Button("Process & Save Video", variant="primary")
+            video_output = gr.Textbox(label="Upload Status")
