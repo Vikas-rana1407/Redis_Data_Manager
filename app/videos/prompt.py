@@ -1,3 +1,4 @@
+# app/videos/prompt.py
 from typing import Optional
 
 def prepare_prompt(
