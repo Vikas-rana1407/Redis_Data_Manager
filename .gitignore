@@ -1,7 +1,51 @@
+# Virtual environments
 venv/
-app.log
-.env/
-.gradio
-pycaches/
+env/
+.venv/
+ENV/
+
+# Environment variables
+.env
+.env.*
+
+
+# Python bytecode and cache
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+pycaches/
+
+# Logs and debug
+*.log
+app.log
+*.pid
+
+# IDEs and Editors
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Gradio cache
+.gradio/
+
+# Application data
 data/
+output/
+uploads/
+temp/
+tmp/
+
+
+
+# MyPy, Pylint, etc.
+.mypy_cache/
+.pylint.d/
+
+# Redis dump files
+dump.rdb
+*.aof
+
