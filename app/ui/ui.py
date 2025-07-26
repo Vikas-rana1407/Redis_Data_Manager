@@ -15,14 +15,14 @@ VALID_PASSWORD = os.getenv("APP_PASSWORD", "adminadmin")
 def main_app():
     with gr.Blocks() as demo:
         render_header()
-        with gr.Tab("Add Data"):
+        with gr.Tab("➕Add Data"):
             render_add_data_tab()
-        with gr.Tab("Search Data"):
+        with gr.Tab("🔍Search Data"):
             render_search_data_tab()
-        with gr.Tab("Delete Data"):
+        with gr.Tab("🗑️Delete Data"):
             render_delete_data_tab()
     return demo
 
 def launch():
     app = main_app()
-    app.launch(auth=(VALID_USERNAME, VALID_PASSWORD))
+    app.launch(auth=(VALID_USERNAME, VALID_PASSWORD), pwa=True)
