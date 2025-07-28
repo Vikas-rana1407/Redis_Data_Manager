@@ -7,7 +7,7 @@ def render_add_data_tab():
             gr.Markdown("### Upload Book CSV")
             csv_input = gr.File(file_types=[".csv"], label="Upload CSV")
             upload_book_btn = gr.Button("Process & Save Book", variant="primary")
-            book_output = gr.Textbox(label="Processed Book Data (JSON)")
+            book_output = gr.Json(label="Processed Book Data (JSON)")
 
         with gr.Tab("🎥Video"):
             gr.Markdown("### Upload YouTube Video")

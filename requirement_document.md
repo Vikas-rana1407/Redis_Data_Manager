@@ -61,10 +61,3 @@ See `requirements.txt` for dependencies.
 ## Notes
 - Uses DeepInfra for LLM and embeddings.
 - Redis must be accessible and configured in `.env`.
-
-## Requirements
-See `requirements.txt` for dependencies.
-
-## Notes
-- Uses DeepInfra for LLM and embeddings.
-- Redis must be accessible and configured in `.env`.
