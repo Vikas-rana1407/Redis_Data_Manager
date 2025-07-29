@@ -1,33 +1,30 @@
 import gradio as gr
 from app.utils.common import search_book_by_title, search_video_by_title_or_url
+from app.redis_manager import redis_client
 
 def handle_book_search(book_title):
     keys, data = search_book_by_title(book_title)
     if not keys:
-        return gr.Dropdown(choices=[], value=None), None
+        # Return empty dropdown and the message dictionary
+        return gr.Dropdown(choices=[], value=None), data[0] if data else {"message": "❌ No related book results found."}
     return gr.Dropdown(choices=keys, value=keys[0]), data[0]
 
 def handle_video_search(input_text):
     keys, data = search_video_by_title_or_url(input_text)
     if not keys:
-        return gr.Dropdown(choices=[], value=None), None
+        # Return empty dropdown and the message dictionary
+        return gr.Dropdown(choices=[], value=None), data[0] if data else {"message": "❌ No related video results found."}
     return gr.Dropdown(choices=keys, value=keys[0]), data[0]
 
 def handle_book_dropdown_change(selected_key):
     if not selected_key:
         return None
-    from app.redis_manager import RedisManager
-    redis_client = RedisManager()
-    json_data = redis_client.client.json().get(selected_key)
-    return json_data
+    return redis_client.get_json(selected_key)
 
 def handle_video_dropdown_change(selected_key):
     if not selected_key:
         return None
-    from app.redis_manager import RedisManager
-    redis_client = RedisManager()
-    json_data = redis_client.client.json().get(selected_key)
-    return json_data
+    return redis_client.get_json(selected_key)
 
 def render_search_data_tab():
     with gr.Column():

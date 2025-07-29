@@ -62,11 +62,7 @@ def search_book_by_title(title_query: str) -> Tuple[List[str], List[dict]]:
     """
     Search books by title using RediSearch with fallback to fuzzy search.
 
-    Args:
-        title_query (str): Book title query.
-
-    Returns:
-        Tuple[List[str], List[dict]]: Matching Redis keys and their JSON data.
+    Returns empty lists with message if no results found.
     """
     try:
         escaped_query = escape_query_string(title_query)
@@ -75,7 +71,7 @@ def search_book_by_title(title_query: str) -> Tuple[List[str], List[dict]]:
         matches = [(doc.id, redis_client.client.json().get(doc.id)) for doc in result.docs]
     except (redis.exceptions.ResponseError, AttributeError) as e:
         logger.warning(f"RedisSearch failed on book_idx: {e}")
-        # Fallback to scan + fuzzy search
+        # Fallback to fuzzy search
         all_keys = list(redis_client.client.scan_iter("book:*"))
         all_data = []
         for key in all_keys:
@@ -87,13 +83,11 @@ def search_book_by_title(title_query: str) -> Tuple[List[str], List[dict]]:
                 continue
 
         best_matches = process.extract(title_query, [t[1] for t in all_data], limit=5, score_cutoff=40)
-        matched_keys = []
-        for match, _, _ in best_matches:
-            for key, title, data in all_data:
-                if title == match:
-                    matched_keys.append((key, data))
-                    break
-        matches = matched_keys
+        matches = [(key, data) for key, title, data in all_data if title in dict(best_matches)]
+
+    if not matches:
+        logger.info(f"No book results found for query: {title_query}")
+        return [], [{"message": f"❌ No related book results found for: '{title_query}'"}]
 
     keys = [k for k, _ in matches]
     data = [d for _, d in matches]
@@ -116,13 +110,9 @@ def extract_video_id(url_or_text: str) -> str:
 
 def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]]:
     """
-    Search videos by YouTube URL or title.
+    Search videos by URL (direct key lookup) or title (RediSearch/fuzzy).
 
-    Args:
-        input_text (str): YouTube URL or title.
-
-    Returns:
-        Tuple[List[str], List[dict]]: Matching Redis keys and their JSON data.
+    Returns empty list with message if nothing found.
     """
     video_id = extract_video_id(input_text)
     if video_id:
@@ -133,7 +123,7 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]
                 return [key], [data]
         except redis.exceptions.ResponseError as e:
             logger.error(f"Error fetching video key {key}: {e}")
-        return [], []
+        return [], [{"message": f"❌ No related video found for ID: '{video_id}'"}]
 
     # Title search
     try:
@@ -143,7 +133,7 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]
         matches = [(doc.id, redis_client.client.json().get(doc.id)) for doc in result.docs]
     except (redis.exceptions.ResponseError, AttributeError) as e:
         logger.warning(f"RedisSearch failed on video_idx: {e}")
-        # Fallback to scan + fuzzy search
+        # Fuzzy fallback
         all_keys = list(redis_client.client.scan_iter("video:*"))
         all_data = []
         for key in all_keys:
@@ -155,14 +145,16 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]
                 continue
 
         best_matches = process.extract(input_text, [t[1] for t in all_data], limit=5, score_cutoff=40)
-        matched_keys = []
-        for match, _, _ in best_matches:
-            for key, title, data in all_data:
-                if title == match:
-                    matched_keys.append((key, data))
-                    break
-        matches = matched_keys
+        matches = [(key, data) for key, title, data in all_data if title in dict(best_matches)]
+
+    if not matches:
+        logger.info(f"No video results found for query: {input_text}")
+        return [], [{"message": f"❌ No related video results found for: '{input_text}'"}]
 
     keys = [k for k, _ in matches]
     data = [d for _, d in matches]
     return keys, data
+
+def normalize_title(title):
+    import re
+    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip())
