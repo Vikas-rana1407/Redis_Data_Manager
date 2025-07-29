@@ -1,7 +1,7 @@
 # Requirement Document: Redis Data Manager
 
 ## Purpose
-A Python application to manage, process, and search YouTube video and book data in Redis. Supports transcript extraction, LLM tagging, embeddings, and search via a Gradio-based web UI.
+A Python application to manage, process, and search YouTube video and book data in Redis. Supports transcript extraction, LLM tagging, embeddings, and search via a Gradio-based web UI. All actions and errors are logged to `app.log` for traceability.
 
 ## Modules
 - **Video Processing**: Add YouTube videos by URL, extract transcript, tag with LLM, store in Redis. (See `app/videos/processor.py`)
@@ -26,10 +26,10 @@ requirements.txt
 requirement_document.md
 README.md
 app/
-  config.py
-  redis_manager.py
   utils/
     common.py
+    config.py
+    redis_manager.py
     logger.py
   ui/
     ui.py
@@ -54,6 +54,10 @@ app/
 ## Extensibility
 - Extend book search and logic in `books/` modules.
 - Extend UI for additional data types or workflows.
+
+## Logging
+- All modules use a centralized logger (`app/utils/logger.py`).
+- All actions, errors, and important events are logged to `app.log`.
 
 ## Requirements
 See `requirements.txt` for dependencies.

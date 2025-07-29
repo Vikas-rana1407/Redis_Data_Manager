@@ -1,6 +1,6 @@
 import gradio as gr
 from app.utils.common import search_book_by_title, search_video_by_title_or_url
-from app.redis_manager import redis_client
+from app.utils.redis_manager import redis_client
 
 def handle_book_search(book_title):
     keys, data = search_book_by_title(book_title)

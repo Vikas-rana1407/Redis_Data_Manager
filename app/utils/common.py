@@ -1,13 +1,11 @@
 import logging
 import re
-import json
 from typing import List, Tuple
 from rapidfuzz import process
-from app.redis_manager import RedisManager
+from app.utils.redis_manager import redis_client
 import redis.exceptions
 
 logger = logging.getLogger(__name__)
-redis_client = RedisManager()
 
 # ----------------------------- DELETE LOGIC ----------------------------- #
 
@@ -36,7 +34,7 @@ def delete_multiple_keys(keys: str, expected_prefix: str) -> str:
             messages.append(f"⚠️ '{key}': Key does not exist.")
             continue
 
-        redis_client.client.delete(key)
+        redis_client.delete(key)
         logger.info(f"✅ Deleted Redis key: {key}")
         messages.append(f"✅ '{key}': Successfully deleted.")
 
@@ -67,16 +65,16 @@ def search_book_by_title(title_query: str) -> Tuple[List[str], List[dict]]:
     try:
         escaped_query = escape_query_string(title_query)
         query = f'@book_title:"{escaped_query}*"'
-        result = redis_client.client.ft("book_idx").search(query)
-        matches = [(doc.id, redis_client.client.json().get(doc.id)) for doc in result.docs]
+        result = redis_client.ft("book_idx").search(query)
+        matches = [(doc.id, redis_client.json().get(doc.id)) for doc in result.docs]
     except (redis.exceptions.ResponseError, AttributeError) as e:
         logger.warning(f"RedisSearch failed on book_idx: {e}")
         # Fallback to fuzzy search
-        all_keys = list(redis_client.client.scan_iter("book:*"))
+        all_keys = list(redis_client.scan_iter("book:*"))
         all_data = []
         for key in all_keys:
             try:
-                data = redis_client.client.json().get(key)
+                data = redis_client.json().get(key)
                 title = data.get("book_title", "")
                 all_data.append((key, title, data))
             except Exception:
@@ -118,7 +116,7 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]
     if video_id:
         key = f"video:{video_id}"
         try:
-            data = redis_client.client.json().get(key)
+            data = redis_client.json().get(key)
             if data:
                 return [key], [data]
         except redis.exceptions.ResponseError as e:
@@ -129,16 +127,16 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]
     try:
         escaped_query = escape_query_string(input_text)
         query = f'@youtube_title:"{escaped_query}*"'
-        result = redis_client.client.ft("video_idx").search(query)
-        matches = [(doc.id, redis_client.client.json().get(doc.id)) for doc in result.docs]
+        result = redis_client.ft("video_idx").search(query)
+        matches = [(doc.id, redis_client.json().get(doc.id)) for doc in result.docs]
     except (redis.exceptions.ResponseError, AttributeError) as e:
         logger.warning(f"RedisSearch failed on video_idx: {e}")
         # Fuzzy fallback
-        all_keys = list(redis_client.client.scan_iter("video:*"))
+        all_keys = list(redis_client.scan_iter("video:*"))
         all_data = []
         for key in all_keys:
             try:
-                data = redis_client.client.json().get(key)
+                data = redis_client.json().get(key)
                 title = data.get("youtube_title", "")
                 all_data.append((key, title, data))
             except Exception:

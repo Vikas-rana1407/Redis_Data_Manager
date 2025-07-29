@@ -4,9 +4,8 @@ import time
 from app.videos.utils import extract_video_id
 from app.videos.processor import fetch_transcript, process_transcript
 from app.videos.embedder import process_json_file
-from app.redis_manager import RedisManager
+from app.utils.redis_manager import redis_client
 
-r = RedisManager()
 
 def ensure_dirs():
     """Ensure all necessary folders exist before writing files."""
@@ -46,7 +45,7 @@ def run_video_pipeline(youtube_url: str):
     print(f"🎬 Starting pipeline for: {video_id}")
 
     redis_key = f"video:{video_id}"
-    if r.exists(redis_key):
+    if redis_client.exists(redis_key):
         return {"error": "⚠️ Video already exists in Redis."}
 
     try:

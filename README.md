@@ -1,7 +1,7 @@
 # Redis Data Manager
 
 ## Overview
-A Python application for managing and searching YouTube video and book data in Redis. Features transcript extraction, LLM tagging, embeddings, and full-text/semantic search via a Gradio web UI.
+A Python application for managing and searching YouTube video and book data in Redis. Features transcript extraction, LLM tagging, embeddings, and full-text/semantic search via a Gradio web UI. All actions and errors are logged to `app.log` for traceability.
 
 ## Features
 - Add YouTube videos by URL (mobile/web)
@@ -11,6 +11,7 @@ A Python application for managing and searching YouTube video and book data in R
 - Delete videos by Redis key
 - Upload books via CSV, embed and save to Redis, search books by name
 - Web UI for all operations (Gradio-based authentication and interface)
+- Centralized logging to `app.log` for all modules
 
 ## File Structure
 ```
@@ -20,10 +21,10 @@ requirements.txt
 requirement_document.md
 README.md
 app/
-  config.py
-  redis_manager.py
   utils/
     common.py
+    config.py
+    redis_manager.py
     logger.py
   ui/
     ui.py
@@ -56,6 +57,10 @@ app/
    python main.py
    ```
 4. Use the web UI to add/search/delete YouTube videos and books.
+
+## Logging
+- All modules use a centralized logger (`app/utils/logger.py`).
+- All actions, errors, and important events are logged to `app.log`.
 
 ## Search
 - Videos: Search by URL or title (full-text and semantic)
