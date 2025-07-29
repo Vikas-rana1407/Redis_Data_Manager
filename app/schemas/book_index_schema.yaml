@@ -1,0 +1,101 @@
+# app/database/book_index_schema.yaml
+
+version: "0.1.0"
+
+index:
+  name: book_idx
+  prefix: "book:"
+  storage_type: json
+
+fields:
+  - name: uuid
+    type: text
+
+  - name: book_title
+    type: text
+
+  - name: author
+    type: text
+
+  - name: link
+    type: text
+
+  - name: summary
+    type: text
+
+  - name: who_is_it_for
+    type: text
+
+  - name: why_you_will_love_it
+    type: text
+
+  - name: zumlos_takeaway
+    type: text
+
+  - name: dimension
+    type: tag
+
+  - name: sub_themes
+    type: tag
+
+  - name: audience
+    type: tag
+
+  - name: difficulty
+    type: tag
+
+  - name: tone_and_style
+    type: tag
+
+  - name: length
+    type: tag
+
+  - name: user_goal_alignment
+    type: tag
+
+  - name: challenge_addressed
+    type: tag
+
+  - name: stage_of_wellness_journey
+    type: tag
+
+  - name: activity_and_engagement_compatibility
+    type: tag
+
+  - name: conversational_keywords
+    type: tag
+
+  - name: emotional_and_behavioral_triggers
+    type: tag
+
+  - name: personality_fit
+    type: tag
+
+  - name: recommended_complementary_resources
+    type: tag
+
+  - name: searchable_text
+    type: text
+
+  - name: format
+    type: tag
+
+  - name: expert_recommended
+    type: tag
+
+  - name: clinically_validated
+    type: tag
+
+  - name: awards_and_recognition
+    type: tag
+
+  - name: embedding
+    type: vector
+    attrs:
+      algorithm: hnsw
+      distance_metric: cosine
+      dtype: float32
+      dims: 768
+      initial_cap: 128
+      M: 32
+      ef_construction: 200

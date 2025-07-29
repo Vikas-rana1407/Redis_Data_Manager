@@ -1,7 +1,19 @@
+
+# Third-party imports
 import gradio as gr
 
+# App imports
+from app.utils.logger import get_logger
+
+# Logger setup
+logger = get_logger(__name__)
+
 def render_header():
-    gr.HTML(
+    """
+    Renders the application header for the Gradio UI.
+    """
+    logger.info("Rendering Gradio UI header.")
+    return gr.HTML(
         '''
         <div style="
             background: #ff5e00;

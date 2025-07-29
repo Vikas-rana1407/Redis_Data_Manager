@@ -1,32 +1,59 @@
+
+# Third-party imports
 import gradio as gr
+
+# App imports
 from app.utils.common import search_book_by_title, search_video_by_title_or_url
 from app.utils.redis_manager import redis_client
+from app.utils.logger import get_logger
+
+# Logger setup
+logger = get_logger(__name__)
 
 def handle_book_search(book_title):
+    """
+    Handles book search by title and logs the search action.
+    """
+    logger.info(f"Searching for book: {book_title}")
     keys, data = search_book_by_title(book_title)
     if not keys:
-        # Return empty dropdown and the message dictionary
+        logger.info(f"No book results found for: {book_title}")
         return gr.Dropdown(choices=[], value=None), data[0] if data else {"message": "❌ No related book results found."}
     return gr.Dropdown(choices=keys, value=keys[0]), data[0]
 
 def handle_video_search(input_text):
+    """
+    Handles video search by title or URL and logs the search action.
+    """
+    logger.info(f"Searching for video: {input_text}")
     keys, data = search_video_by_title_or_url(input_text)
     if not keys:
-        # Return empty dropdown and the message dictionary
+        logger.info(f"No video results found for: {input_text}")
         return gr.Dropdown(choices=[], value=None), data[0] if data else {"message": "❌ No related video results found."}
     return gr.Dropdown(choices=keys, value=keys[0]), data[0]
 
 def handle_book_dropdown_change(selected_key):
+    """
+    Loads book data for the selected key and logs the action.
+    """
     if not selected_key:
         return None
-    return redis_client.get_json(selected_key)
+    logger.info(f"Loading book data for key: {selected_key}")
+    return redis_client.json().get(selected_key)
 
 def handle_video_dropdown_change(selected_key):
+    """
+    Loads video data for the selected key and logs the action.
+    """
     if not selected_key:
         return None
-    return redis_client.get_json(selected_key)
+    logger.info(f"Loading video data for key: {selected_key}")
+    return redis_client.json().get(selected_key)
 
 def render_search_data_tab():
+    """
+    Renders the Search Data tab for books and videos.
+    """
     with gr.Column():
         with gr.Tab("📚 Book"):
             gr.Markdown("### Search by Book Title")

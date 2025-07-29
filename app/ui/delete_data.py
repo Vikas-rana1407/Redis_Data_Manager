@@ -1,13 +1,32 @@
+
+# Third-party imports
 import gradio as gr
+
+# App imports
 from app.utils.common import delete_multiple_keys
+from app.utils.logger import get_logger
+
+# Logger setup
+logger = get_logger(__name__)
 
 def handle_book_deletion(book_keys: str) -> str:
+    """
+    Handles deletion of book keys and logs the action.
+    """
+    logger.info(f"Deleting book keys: {book_keys}")
     return delete_multiple_keys(book_keys, expected_prefix="book:")
 
 def handle_video_deletion(video_keys: str) -> str:
+    """
+    Handles deletion of video keys and logs the action.
+    """
+    logger.info(f"Deleting video keys: {video_keys}")
     return delete_multiple_keys(video_keys, expected_prefix="video:")
 
 def render_delete_data_tab():
+    """
+    Renders the Delete Data tab for books and videos.
+    """
     with gr.Column():
         with gr.Tab("📚Book"):
             gr.Markdown("### Delete Book(s) from Redis")
@@ -24,7 +43,6 @@ def render_delete_data_tab():
                 outputs=[book_delete_status]
             )
 
-            # 📘 Instruction Box for Book Deletion
             gr.Markdown("""
 ---
 ### ℹ️ **Book Deletion Instructions**
@@ -50,7 +68,6 @@ def render_delete_data_tab():
                 outputs=[video_delete_status]
             )
 
-            # 🎥 Instruction Box for Video Deletion
             gr.Markdown("""
 ---
 ### ℹ️ **Video Deletion Instructions**

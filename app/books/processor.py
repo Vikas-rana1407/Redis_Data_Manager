@@ -1,15 +1,24 @@
+
+# Standard library imports
 import os
 import csv
 import json
 import re
 import uuid
 import shutil
-import logging
+
+# Third-party imports
 import requests
 from dotenv import load_dotenv
 from typing import List, Dict, Tuple
 from redis.exceptions import ResponseError
+
+# App imports
 from app.utils.redis_manager import redis_client
+from app.utils.logger import get_logger
+
+# Logger setup
+logger = get_logger(__name__)
 
 load_dotenv()
 
@@ -60,6 +69,9 @@ def generate_uuid(title: str) -> str:
     return f"{cleaned}_{uuid.uuid4()}"
 
 def get_embedding(text: str) -> List[float] | None:
+    """
+    Get embedding for the given text using DeepInfra API. Logs errors if any.
+    """
     try:
         resp = requests.post(
             "https://api.deepinfra.com/v1/openai/embeddings",
@@ -69,7 +81,7 @@ def get_embedding(text: str) -> List[float] | None:
         resp.raise_for_status()
         return resp.json()["data"][0]["embedding"]
     except Exception as e:
-        logging.error(f"Embedding error: {e}")
+        logger.error(f"Embedding error: {e}")
         return None
 
 def check_duplicate_by_title(book_title: str) -> bool:
@@ -85,6 +97,10 @@ def build_searchable_text(row: dict) -> str:
 
 # ----------------- Main Entry ----------------- #
 def process_book_csv(uploaded_file_path: str) -> Tuple[List[dict], str]:
+    """
+    Process a CSV file containing book data, generate embeddings, and store in Redis.
+    Logs all major actions and errors.
+    """
     processed_books = []
     total, failed, duplicates = 0, 0, 0
 
@@ -92,28 +108,46 @@ def process_book_csv(uploaded_file_path: str) -> Tuple[List[dict], str]:
     saved_path = os.path.join(UPLOAD_FOLDER, filename)
     if uploaded_file_path != saved_path:
         shutil.copyfile(uploaded_file_path, saved_path)
+        logger.info(f"Book CSV uploaded: {saved_path}")
+
 
     with open(saved_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             total += 1
+            # Convert all keys to snake_case for consistency
             row_snake = {to_snake_case(k): v.strip() for k, v in row.items()}
-            row_data = {col: row_snake.get(col, "") for col in SEARCHABLE_COLUMNS}
+            # Build row_data with all columns present in the row
+            row_data = dict(row_snake)
+            # Add normalized title for robust search (optional, not used in search now)
+            def normalize_title(title):
+                return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip())
+            row_data["book_title_normalized"] = normalize_title(row_data.get("book_title", ""))
+            # Build searchable_text as in the reference
+            def stringify(value):
+                if isinstance(value, list):
+                    return ", ".join(map(str, value))
+                return str(value) if value is not None else ""
+            row_data["searchable_text"] = " ".join([stringify(row_data.get(col, '')) for col in SEARCHABLE_COLUMNS]).strip()
 
-            if not all(row_data.values()):
+            # Require at least book_title and one other field to proceed
+            if not row_data.get("book_title") or all(not v for k, v in row_data.items() if k != "book_title"):
                 failed += 1
+                logger.warning(f"Incomplete book data in row: {row}")
                 continue
 
             if check_duplicate_by_title(row_data["book_title"]):
                 duplicates += 1
+                logger.info(f"Duplicate book found: {row_data['book_title']}")
                 continue
 
             uuid_ = generate_uuid(row_data["book_title"])
             redis_key = f"book:{uuid_}"
 
-            embedding = get_embedding(build_searchable_text(row_data))
+            embedding = get_embedding(row_data["searchable_text"])
             if embedding is None:
                 failed += 1
+                logger.error(f"Failed to get embedding for book: {row_data['book_title']}")
                 continue
 
             book_data = {
@@ -123,10 +157,12 @@ def process_book_csv(uploaded_file_path: str) -> Tuple[List[dict], str]:
             }
 
             redis_json.set(redis_key, "$", book_data)
+            logger.info(f"Saved book to Redis: {redis_key}")
 
             json_path = os.path.join(PROCESSED_FOLDER, f"{uuid_}.json")
             with open(json_path, "w", encoding="utf-8") as jf:
                 json.dump(book_data, jf, indent=2, ensure_ascii=False)
+            logger.info(f"Saved processed book JSON: {json_path}")
 
             processed_books.append(book_data)
 
@@ -136,6 +172,8 @@ def process_book_csv(uploaded_file_path: str) -> Tuple[List[dict], str]:
             writer = csv.DictWriter(out_csv, fieldnames=processed_books[0].keys())
             writer.writeheader()
             writer.writerows(processed_books)
+        logger.info(f"Saved processed books CSV: {final_csv_path}")
 
     summary = f"✅ Processed: {len(processed_books)} | ❌ Failed: {failed} | ⏭️ Duplicates: {duplicates} | 📊 Total: {total}"
+    logger.info(summary)
     return processed_books, summary

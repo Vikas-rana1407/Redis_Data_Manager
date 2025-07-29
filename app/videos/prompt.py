@@ -1,4 +1,8 @@
+
 # app/videos/prompt.py
+# Provides the LLM prompt template for video transcript classification.
+
+# Standard library imports
 from typing import Optional
 
 def prepare_prompt(
@@ -9,9 +13,22 @@ def prepare_prompt(
     goal_objective_tags: Optional[str] = None,
     edited_prompt: Optional[str] = None,
 ):
+    """
+    Prepare the prompt for LLM-based video transcript classification.
+    Args:
+        transcript_text (str): Transcript text
+        video_title (str): Video title
+        video_id (str): YouTube video ID
+        activity_tags (str): Activity tags
+        goal_objective_tags (Optional[str]): Goal/objective tags
+        edited_prompt (Optional[str]): If provided, use as prompt
+    Returns:
+        str: Prompt for LLM
+    """
     if edited_prompt:
         return edited_prompt
 
+    # Template prompt for LLM
     return f"""<role>
 You are a precision content taxonomist specializing in wellness video classification. Your task is to analyze video transcripts and apply structured tagging using our enterprise taxonomy framework..Ensure that all JSON fields are fully filled. Do not leave any field as null. For example, assign 'short' or 'medium' to duration, and 'morning', 'afternoon', or 'evening' to timeOfDay.
 </role>

@@ -1,8 +1,14 @@
-import redis
-import logging
-from app.utils.config import get_redis_config
 
-logger = logging.getLogger(__name__)
+# Third-party imports
+import redis
+
+# App imports
+from app.utils.config import get_redis_config
+from app.utils.logger import get_logger
+
+# Logger setup
+logger = get_logger(__name__)
+
 
 class RedisManager:
     """
@@ -19,12 +25,17 @@ class RedisManager:
         )
         logger.info('Connected to Redis')
 
-    
     def exists(self, key):
-        """Check if a key exists in Redis."""
+        """
+        Check if a key exists in Redis.
+        """
         return self.client.exists(key)
 
     def get_client(self):
-        """Return the raw Redis client."""
+        """
+        Return the raw Redis client.
+        """
         return self.client
+
+# Singleton Redis client for app-wide use
 redis_client = RedisManager().get_client()

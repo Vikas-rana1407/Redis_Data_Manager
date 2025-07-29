@@ -1,11 +1,18 @@
-import logging
+
+# Standard library imports
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Any, Optional
+
+# Third-party imports
 from rapidfuzz import process
-from app.utils.redis_manager import redis_client
 import redis.exceptions
 
-logger = logging.getLogger(__name__)
+# App imports
+from app.utils.redis_manager import redis_client
+from app.utils.logger import get_logger
+
+# Logger setup
+logger = get_logger(__name__)
 
 # ----------------------------- DELETE LOGIC ----------------------------- #
 
@@ -56,17 +63,31 @@ def escape_query_string(text: str) -> str:
 
 # ----------------------------- BOOK SEARCH ----------------------------- #
 
-def search_book_by_title(title_query: str) -> Tuple[List[str], List[dict]]:
+def search_book_by_title(title_query: str) -> Tuple[List[str], List[Any]]:
     """
     Search books by title using RediSearch with fallback to fuzzy search.
 
     Returns empty lists with message if no results found.
     """
     try:
-        escaped_query = escape_query_string(title_query)
-        query = f'@book_title:"{escaped_query}*"'
+        # Use the book_title field directly (no normalization)
+        query_escaped = escape_query_string(title_query)
+        # Additionally escape double quotes for phrase queries
+        query_escaped = query_escaped.replace('"', '\"')
+        if ' ' in title_query.strip():
+            # Exact phrase match on book_title, ensure quotes are escaped
+            query = f'@book_title:"{query_escaped}"'
+        else:
+            # Prefix/wildcard match on book_title
+            query = f'@book_title:{query_escaped}*'
         result = redis_client.ft("book_idx").search(query)
-        matches = [(doc.id, redis_client.json().get(doc.id)) for doc in result.docs]
+        docs = getattr(result, 'docs', [])
+        matches = []
+        for doc in docs:
+            doc_id = getattr(doc, 'id', None)
+            if doc_id:
+                data = redis_client.json().get(doc_id)
+                matches.append((doc_id, data))
     except (redis.exceptions.ResponseError, AttributeError) as e:
         logger.warning(f"RedisSearch failed on book_idx: {e}")
         # Fallback to fuzzy search
@@ -75,13 +96,17 @@ def search_book_by_title(title_query: str) -> Tuple[List[str], List[dict]]:
         for key in all_keys:
             try:
                 data = redis_client.json().get(key)
-                title = data.get("book_title", "")
+                # Defensive: data may be None or a list
+                title = ""
+                if isinstance(data, dict):
+                    title = data.get("book_title", "")
                 all_data.append((key, title, data))
             except Exception:
                 continue
 
         best_matches = process.extract(title_query, [t[1] for t in all_data], limit=5, score_cutoff=40)
-        matches = [(key, data) for key, title, data in all_data if title in dict(best_matches)]
+        match_titles = {m[0] for m in best_matches}
+        matches = [(key, data) for key, title, data in all_data if title in match_titles]
 
     if not matches:
         logger.info(f"No book results found for query: {title_query}")
@@ -93,7 +118,7 @@ def search_book_by_title(title_query: str) -> Tuple[List[str], List[dict]]:
 
 # ----------------------------- VIDEO SEARCH ----------------------------- #
 
-def extract_video_id(url_or_text: str) -> str:
+def extract_video_id(url_or_text: str) -> Optional[str]:
     """
     Extract YouTube video ID from URL or plain text.
 
@@ -106,12 +131,13 @@ def extract_video_id(url_or_text: str) -> str:
     match = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url_or_text)
     return match.group(1) if match else None
 
-def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]]:
+def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[Any]]:
     """
     Search videos by URL (direct key lookup) or title (RediSearch/fuzzy).
 
     Returns empty list with message if nothing found.
     """
+
     video_id = extract_video_id(input_text)
     if video_id:
         key = f"video:{video_id}"
@@ -124,12 +150,29 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]
         return [], [{"message": f"❌ No related video found for ID: '{video_id}'"}]
 
     # Title search
+    def normalize_for_search(text):
+        return re.sub(r'[^a-zA-Z0-9 ]', '', text.lower().strip())
+
     try:
-        escaped_query = escape_query_string(input_text)
-        query = f'@youtube_title:"{escaped_query}*"'
+        # Try direct RediSearch with normalized query
+        norm_query = normalize_for_search(input_text)
+        query_escaped = escape_query_string(norm_query)
+        if ' ' in norm_query:
+            query = f'@youtube_title:"{query_escaped}"'
+        else:
+            query = f'@youtube_title:{query_escaped}*'
         result = redis_client.ft("video_idx").search(query)
-        matches = [(doc.id, redis_client.json().get(doc.id)) for doc in result.docs]
-    except (redis.exceptions.ResponseError, AttributeError) as e:
+        docs = getattr(result, 'docs', [])
+        matches = []
+        for doc in docs:
+            doc_id = getattr(doc, 'id', None)
+            if doc_id:
+                data = redis_client.json().get(doc_id)
+                matches.append((doc_id, data))
+        # If no matches, fallback to fuzzy search
+        if not matches:
+            raise ValueError('No direct RediSearch match, fallback to fuzzy')
+    except (redis.exceptions.ResponseError, AttributeError, ValueError) as e:
         logger.warning(f"RedisSearch failed on video_idx: {e}")
         # Fuzzy fallback
         all_keys = list(redis_client.scan_iter("video:*"))
@@ -137,13 +180,16 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[dict]
         for key in all_keys:
             try:
                 data = redis_client.json().get(key)
-                title = data.get("youtube_title", "")
+                title = ""
+                if isinstance(data, dict):
+                    title = data.get("youtube_title", "")
                 all_data.append((key, title, data))
             except Exception:
                 continue
 
         best_matches = process.extract(input_text, [t[1] for t in all_data], limit=5, score_cutoff=40)
-        matches = [(key, data) for key, title, data in all_data if title in dict(best_matches)]
+        match_titles = {m[0] for m in best_matches}
+        matches = [(key, data) for key, title, data in all_data if title in match_titles]
 
     if not matches:
         logger.info(f"No video results found for query: {input_text}")
