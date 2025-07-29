@@ -1,3 +1,53 @@
+# In-memory normalized video title index for search
+_normalized_video_title_index = None
+
+def _normalize_video_title_for_index(title: str) -> str:
+    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip()) if title else ''
+
+def _build_normalized_video_title_index():
+    index = {}
+    for key in redis_client.scan_iter("video:*"):
+        try:
+            data = redis_client.json().get(key)
+            if isinstance(data, dict):
+                title = data.get("youtube_title", "")
+                norm = _normalize_video_title_for_index(title)
+                if norm:
+                    index[norm] = (key, data)
+        except Exception:
+            continue
+    return index
+
+def get_normalized_video_title_index():
+    global _normalized_video_title_index
+    if _normalized_video_title_index is None:
+        _normalized_video_title_index = _build_normalized_video_title_index()
+    return _normalized_video_title_index
+# In-memory normalized book title index for search
+_normalized_book_title_index = None
+
+def _normalize_title_for_index(title: str) -> str:
+    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip()) if title else ''
+
+def _build_normalized_book_title_index():
+    index = {}
+    for key in redis_client.scan_iter("book:*"):
+        try:
+            data = redis_client.json().get(key)
+            if isinstance(data, dict):
+                title = data.get("book_title", "")
+                norm = _normalize_title_for_index(title)
+                if norm:
+                    index[norm] = (key, data)
+        except Exception:
+            continue
+    return index
+
+def get_normalized_book_title_index():
+    global _normalized_book_title_index
+    if _normalized_book_title_index is None:
+        _normalized_book_title_index = _build_normalized_book_title_index()
+    return _normalized_book_title_index
 
 # Standard library imports
 import re
@@ -69,44 +119,20 @@ def search_book_by_title(title_query: str) -> Tuple[List[str], List[Any]]:
 
     Returns empty lists with message if no results found.
     """
-    try:
-        # Use the book_title field directly (no normalization)
-        query_escaped = escape_query_string(title_query)
-        # Additionally escape double quotes for phrase queries
-        query_escaped = query_escaped.replace('"', '\"')
-        if ' ' in title_query.strip():
-            # Exact phrase match on book_title, ensure quotes are escaped
-            query = f'@book_title:"{query_escaped}"'
-        else:
-            # Prefix/wildcard match on book_title
-            query = f'@book_title:{query_escaped}*'
-        result = redis_client.ft("book_idx").search(query)
-        docs = getattr(result, 'docs', [])
-        matches = []
-        for doc in docs:
-            doc_id = getattr(doc, 'id', None)
-            if doc_id:
-                data = redis_client.json().get(doc_id)
-                matches.append((doc_id, data))
-    except (redis.exceptions.ResponseError, AttributeError) as e:
-        logger.warning(f"RedisSearch failed on book_idx: {e}")
-        # Fallback to fuzzy search
-        all_keys = list(redis_client.scan_iter("book:*"))
-        all_data = []
-        for key in all_keys:
-            try:
-                data = redis_client.json().get(key)
-                # Defensive: data may be None or a list
-                title = ""
-                if isinstance(data, dict):
-                    title = data.get("book_title", "")
-                all_data.append((key, title, data))
-            except Exception:
-                continue
-
-        best_matches = process.extract(title_query, [t[1] for t in all_data], limit=5, score_cutoff=40)
-        match_titles = {m[0] for m in best_matches}
-        matches = [(key, data) for key, title, data in all_data if title in match_titles]
+    # Use in-memory normalized index for robust, fast search
+    norm_query = _normalize_title_for_index(title_query)
+    index = get_normalized_book_title_index()
+    matches = []
+    if norm_query in index:
+        key, data = index[norm_query]
+        matches.append((key, data))
+    else:
+        # Fallback: fuzzy match on normalized titles
+        from rapidfuzz import process
+        all_norm_titles = list(index.keys())
+        best_matches = process.extract(norm_query, all_norm_titles, limit=5, score_cutoff=60)
+        match_norms = {m[0] for m in best_matches}
+        matches = [index[n] for n in match_norms if n in index]
 
     if not matches:
         logger.info(f"No book results found for query: {title_query}")
@@ -149,47 +175,20 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[Any]]
             logger.error(f"Error fetching video key {key}: {e}")
         return [], [{"message": f"❌ No related video found for ID: '{video_id}'"}]
 
-    # Title search
-    def normalize_for_search(text):
-        return re.sub(r'[^a-zA-Z0-9 ]', '', text.lower().strip())
-
-    try:
-        # Try direct RediSearch with normalized query
-        norm_query = normalize_for_search(input_text)
-        query_escaped = escape_query_string(norm_query)
-        if ' ' in norm_query:
-            query = f'@youtube_title:"{query_escaped}"'
-        else:
-            query = f'@youtube_title:{query_escaped}*'
-        result = redis_client.ft("video_idx").search(query)
-        docs = getattr(result, 'docs', [])
-        matches = []
-        for doc in docs:
-            doc_id = getattr(doc, 'id', None)
-            if doc_id:
-                data = redis_client.json().get(doc_id)
-                matches.append((doc_id, data))
-        # If no matches, fallback to fuzzy search
-        if not matches:
-            raise ValueError('No direct RediSearch match, fallback to fuzzy')
-    except (redis.exceptions.ResponseError, AttributeError, ValueError) as e:
-        logger.warning(f"RedisSearch failed on video_idx: {e}")
-        # Fuzzy fallback
-        all_keys = list(redis_client.scan_iter("video:*"))
-        all_data = []
-        for key in all_keys:
-            try:
-                data = redis_client.json().get(key)
-                title = ""
-                if isinstance(data, dict):
-                    title = data.get("youtube_title", "")
-                all_data.append((key, title, data))
-            except Exception:
-                continue
-
-        best_matches = process.extract(input_text, [t[1] for t in all_data], limit=5, score_cutoff=40)
-        match_titles = {m[0] for m in best_matches}
-        matches = [(key, data) for key, title, data in all_data if title in match_titles]
+    # Title search using in-memory normalized index
+    norm_query = _normalize_video_title_for_index(input_text)
+    index = get_normalized_video_title_index()
+    matches = []
+    if norm_query in index:
+        key, data = index[norm_query]
+        matches.append((key, data))
+    else:
+        # Fuzzy fallback on normalized titles
+        from rapidfuzz import process
+        all_norm_titles = list(index.keys())
+        best_matches = process.extract(norm_query, all_norm_titles, limit=5, score_cutoff=60)
+        match_norms = {m[0] for m in best_matches}
+        matches = [index[n] for n in match_norms if n in index]
 
     if not matches:
         logger.info(f"No video results found for query: {input_text}")

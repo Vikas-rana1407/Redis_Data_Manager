@@ -17,8 +17,34 @@ from redis.exceptions import ResponseError
 from app.utils.redis_manager import redis_client
 from app.utils.logger import get_logger
 
-# Logger setup
+
 logger = get_logger(__name__)
+
+# In-memory normalized title index (populated at module load)
+_normalized_book_title_index = None
+
+def _normalize_title_for_index(title: str) -> str:
+    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip()) if title else ''
+
+def _build_normalized_book_title_index():
+    index = {}
+    for key in redis_client.scan_iter("book:*"):
+        try:
+            data = redis_client.json().get(key)
+            if isinstance(data, dict):
+                title = data.get("book_title", "")
+                norm = _normalize_title_for_index(title)
+                if norm:
+                    index[norm] = key
+        except Exception:
+            continue
+    return index
+
+def get_normalized_book_title_index():
+    global _normalized_book_title_index
+    if _normalized_book_title_index is None:
+        _normalized_book_title_index = _build_normalized_book_title_index()
+    return _normalized_book_title_index
 
 load_dotenv()
 
@@ -85,12 +111,10 @@ def get_embedding(text: str) -> List[float] | None:
         return None
 
 def check_duplicate_by_title(book_title: str) -> bool:
-    try:
-        query = f"@book_title:'{book_title}'"
-        result = redis_client.ft("book_idx").search(query)
-        return result.total > 0
-    except ResponseError:
-        return False
+    # Use in-memory normalized index for robust duplicate detection
+    norm = _normalize_title_for_index(book_title)
+    index = get_normalized_book_title_index()
+    return norm in index
 
 def build_searchable_text(row: dict) -> str:
     return " ".join(str(row.get(col, "")) for col in SEARCHABLE_COLUMNS)
@@ -110,6 +134,10 @@ def process_book_csv(uploaded_file_path: str) -> Tuple[List[dict], str]:
         shutil.copyfile(uploaded_file_path, saved_path)
         logger.info(f"Book CSV uploaded: {saved_path}")
 
+
+    # Refresh the in-memory index before batch processing
+    global _normalized_book_title_index
+    _normalized_book_title_index = _build_normalized_book_title_index()
 
     with open(saved_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
