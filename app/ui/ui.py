@@ -44,5 +44,7 @@ def launch():
     """
     app = main_app()
     logger.info("Launching Gradio app with authentication.")
-    app.launch(auth=(VALID_USERNAME, VALID_PASSWORD))
+    username = VALID_USERNAME if VALID_USERNAME else "admin"
+    password = VALID_PASSWORD if VALID_PASSWORD else "admin"
+    app.launch(auth=(username, password))
 

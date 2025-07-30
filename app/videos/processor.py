@@ -10,9 +10,9 @@ import os
 import json
 import time
 import re
-import sys
 
 # Third-party imports
+import yt_dlp
 from dotenv import load_dotenv
 from youtube_transcript_api._api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
@@ -26,8 +26,7 @@ from app.videos.utils import get_video_title, extract_json_response, call_llm, e
 from app.utils.logger import get_logger
 
 # Ensure redis_client is imported or defined at the top of the file
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from app.config import redis_client
+from app.utils.redis_manager import redis_client
 
 # Logger setup
 logger = get_logger(__name__)
@@ -75,6 +74,16 @@ def fetch_transcript(video_id: str, lang="en"):
         return None
 
 def process_transcript(video_id: str, transcript: str):
+    def get_youtube_duration_seconds(video_id: str) -> int | None:
+        """Fetch YouTube video duration in seconds using yt_dlp."""
+        try:
+            url = f"https://www.youtube.com/watch?v={video_id}"
+            with yt_dlp.YoutubeDL({'quiet': True, 'nocache': True, 'skip_download': True}) as ydl:
+                info = ydl.extract_info(url, download=False)
+                return info.get("duration", None)
+        except Exception as e:
+            logger.warning(f"❌ Duration fetch failed for {video_id}: {e}")
+            return None
     """
     Process transcript with LLM and save structured JSON output.
     Args:
@@ -104,6 +113,9 @@ def process_transcript(video_id: str, transcript: str):
     result["videoId"] = video_id
     result["videoTitle"] = title
     result["transcript_text"] = transcript
+    # Add duration in seconds
+    duration = get_youtube_duration_seconds(video_id)
+    result["duration_seconds"] = duration
 
     output_path = os.path.join(PROCESSED_DIR, f"{video_id}.json")
     with open(output_path, "w", encoding="utf-8") as f:
