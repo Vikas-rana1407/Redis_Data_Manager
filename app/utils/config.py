@@ -30,22 +30,3 @@ def get_redis_config() -> Dict[str, Any]:
     logger.info(f"Loaded Redis config: {config}")
     return config
 
-def get_credentials() -> tuple[str, str]:
-    """
-    Get application credentials from environment variables.
-    Returns:
-        tuple[str, str]: (username, password)
-    """
-    creds = (os.getenv('APP_USERNAME', ''), os.getenv('APP_PASSWORD', ''))
-    logger.info(f"Loaded app credentials for user: {creds[0]}")
-    return creds
-
-def get_deepinfra_key() -> str:
-    """
-    Get DeepInfra API key from environment variables.
-    Returns:
-        str: DeepInfra API key
-    """
-    key = os.getenv('DEEPINFRA_API_KEY', '')
-    logger.info(f"Loaded DeepInfra API key: {'set' if key else 'not set'}")
-    return key

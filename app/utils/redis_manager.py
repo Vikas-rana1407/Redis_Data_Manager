@@ -25,12 +25,6 @@ class RedisManager:
         )
         logger.info('Connected to Redis')
 
-    def exists(self, key):
-        """
-        Check if a key exists in Redis.
-        """
-        return self.client.exists(key)
-
     def get_client(self):
         """
         Return the raw Redis client.

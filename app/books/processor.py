@@ -109,8 +109,6 @@ def build_searchable_text(row: dict[str, str]) -> str:
 # All duplicate detection and search now use RediSearch. No in-memory index logic remains.
 # Functions are commented and logging is present for all major operations.
 # ----------------- Main Entry ----------------- #
-def normalize_title(title: str) -> str:
-    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip())
 
 def stringify(value):
     if isinstance(value, list):
