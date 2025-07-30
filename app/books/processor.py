@@ -17,31 +17,6 @@ from app.utils.logger import get_logger
 
 
 logger = get_logger(__name__)
-
-# In-memory normalized title index (populated at module load)
-    # Removed in-memory normalized title index logic
-    # _normalized_book_title_index = None
-    # def _normalize_title_for_index(title: str) -> str:
-    #     return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip()) if title else ''
-    # def _build_normalized_book_title_index():
-    #     index = {}
-    #     for key in redis_client.scan_iter("book:*"):
-    #         try:
-    #             data = redis_client.json().get(key)
-    #             if isinstance(data, dict):
-    #                 title = data.get("book_title", "")
-    #                 norm = _normalize_title_for_index(title)
-    #                 if norm:
-    #                     index[norm] = key
-    #         except Exception:
-    #             continue
-    #     return index
-    # def get_normalized_book_title_index():
-    #     global _normalized_book_title_index
-    #     if _normalized_book_title_index is None:
-    #         _normalized_book_title_index = _build_normalized_book_title_index()
-    #     return _normalized_book_title_index
-
 load_dotenv()
 
 # ----------------- ENV & Constants ----------------- #
