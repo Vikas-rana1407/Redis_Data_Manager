@@ -70,3 +70,7 @@ See `requirements.txt` for dependencies.
 
 ## License
 MIT
+
+# Project now uses RediSearch for all search and duplicate detection.
+# No in-memory index logic remains. All major functions have logging and comments.
+# See processor files for details.

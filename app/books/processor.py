@@ -1,4 +1,3 @@
-
 # Standard library imports
 import os
 import csv
@@ -10,8 +9,7 @@ import shutil
 # Third-party imports
 import requests
 from dotenv import load_dotenv
-from typing import List, Dict, Tuple
-from redis.exceptions import ResponseError
+from typing import List, Tuple
 
 # App imports
 from app.utils.redis_manager import redis_client
@@ -21,30 +19,28 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # In-memory normalized title index (populated at module load)
-_normalized_book_title_index = None
-
-def _normalize_title_for_index(title: str) -> str:
-    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip()) if title else ''
-
-def _build_normalized_book_title_index():
-    index = {}
-    for key in redis_client.scan_iter("book:*"):
-        try:
-            data = redis_client.json().get(key)
-            if isinstance(data, dict):
-                title = data.get("book_title", "")
-                norm = _normalize_title_for_index(title)
-                if norm:
-                    index[norm] = key
-        except Exception:
-            continue
-    return index
-
-def get_normalized_book_title_index():
-    global _normalized_book_title_index
-    if _normalized_book_title_index is None:
-        _normalized_book_title_index = _build_normalized_book_title_index()
-    return _normalized_book_title_index
+    # Removed in-memory normalized title index logic
+    # _normalized_book_title_index = None
+    # def _normalize_title_for_index(title: str) -> str:
+    #     return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip()) if title else ''
+    # def _build_normalized_book_title_index():
+    #     index = {}
+    #     for key in redis_client.scan_iter("book:*"):
+    #         try:
+    #             data = redis_client.json().get(key)
+    #             if isinstance(data, dict):
+    #                 title = data.get("book_title", "")
+    #                 norm = _normalize_title_for_index(title)
+    #                 if norm:
+    #                     index[norm] = key
+    #         except Exception:
+    #             continue
+    #     return index
+    # def get_normalized_book_title_index():
+    #     global _normalized_book_title_index
+    #     if _normalized_book_title_index is None:
+    #         _normalized_book_title_index = _build_normalized_book_title_index()
+    #     return _normalized_book_title_index
 
 load_dotenv()
 
@@ -111,16 +107,34 @@ def get_embedding(text: str) -> List[float] | None:
         return None
 
 def check_duplicate_by_title(book_title: str) -> bool:
-    # Use in-memory normalized index for robust duplicate detection
-    norm = _normalize_title_for_index(book_title)
-    index = get_normalized_book_title_index()
-    return norm in index
+    """
+    Check for duplicate book by title using RediSearch text search (no in-memory index).
+    Returns True if a book with the same normalized title exists, else False.
+    """
+    try:
+        filtered_query = re.sub(r'[^a-zA-Z0-9 ]', '', book_title).strip().lower()
+        query_str = re.sub(r'([@!{}()\[\]\|><"~*:\\])', r'\\\1', filtered_query)
+        search_query = f'@book_title:{query_str}'
+        args = [
+            'book_idx',
+            search_query,
+            'LIMIT', '0', '1',
+        ]
+        res = redis_client.execute_command('FT.SEARCH', *args)
+        # If any result found, it's a duplicate
+        return bool(res and len(res) > 2)
+    except Exception as e:
+        logger.error(f"RediSearch error in duplicate check: {e}")
+        return False
 
-def build_searchable_text(row: dict) -> str:
+def build_searchable_text(row: dict[str, str]) -> str:
     return " ".join(str(row.get(col, "")) for col in SEARCHABLE_COLUMNS)
 
+# ----------------------------- BOOKS PROCESSOR ----------------------------- #
+# All duplicate detection and search now use RediSearch. No in-memory index logic remains.
+# Functions are commented and logging is present for all major operations.
 # ----------------- Main Entry ----------------- #
-def process_book_csv(uploaded_file_path: str) -> Tuple[List[dict], str]:
+def process_book_csv(uploaded_file_path: str) -> Tuple[List[dict[str, str]], str]:
     """
     Process a CSV file containing book data, generate embeddings, and store in Redis.
     Logs all major actions and errors.
@@ -135,9 +149,7 @@ def process_book_csv(uploaded_file_path: str) -> Tuple[List[dict], str]:
         logger.info(f"Book CSV uploaded: {saved_path}")
 
 
-    # Refresh the in-memory index before batch processing
-    global _normalized_book_title_index
-    _normalized_book_title_index = _build_normalized_book_title_index()
+    # Removed in-memory index refresh logic
 
     with open(saved_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)

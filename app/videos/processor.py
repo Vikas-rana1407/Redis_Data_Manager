@@ -1,12 +1,16 @@
-
 # app/videos/processor.py
 # Handles transcript fetching, LLM processing, and JSON output for YouTube videos.
+
+# ----------------------------- VIDEOS PROCESSOR ----------------------------- #
+# All duplicate detection and search now use RediSearch. No in-memory index logic remains.
+# Functions are commented and logging is present for all major operations.
 
 # Standard library imports
 import os
 import json
 import time
 import re
+import sys
 
 # Third-party imports
 from dotenv import load_dotenv
@@ -20,6 +24,10 @@ from app.videos.new_tags import activity_tags, goal_objective_tags
 from app.videos.prompt import prepare_prompt
 from app.videos.utils import get_video_title, extract_json_response, call_llm, ensure_dirs
 from app.utils.logger import get_logger
+
+# Ensure redis_client is imported or defined at the top of the file
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from app.config import redis_client
 
 # Logger setup
 logger = get_logger(__name__)
@@ -39,8 +47,8 @@ def extract_video_id(url: str):
     Returns:
         str or None: Video ID if found, else None
     """
-    match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url)
-    return match.group(1) if match else None
+    m = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url)
+    return m.group(1) if m else None
 
 def fetch_transcript(video_id: str, lang="en"):
     """
@@ -102,3 +110,24 @@ def process_transcript(video_id: str, transcript: str):
         json.dump(result, f, indent=4)
     logger.info(f"Saved processed JSON: {output_path}")
     return result
+
+def check_duplicate_by_video_title(video_title: str) -> bool:
+    """
+    Check for duplicate video by title using RediSearch text search (no in-memory index).
+    Returns True if a video with the same normalized title exists, else False.
+    """
+    try:
+        filtered_query = re.sub(r'[^a-zA-Z0-9 ]', '', video_title).strip().lower()
+        query_str = re.sub(r'([@!{}()\[\]\|><"~*:\\])', r'\\\1', filtered_query)
+        search_query = f'@youtube_title:{query_str}'
+        args = [
+            'video_idx',
+            search_query,
+            'LIMIT', '0', '1',
+        ]
+        res = redis_client.execute_command('FT.SEARCH', *args)
+        # If any result found, it's a duplicate
+        return bool(res and len(res) > 2)
+    except Exception as e:
+        logger.error(f"RediSearch error in video duplicate check: {e}")
+        return False

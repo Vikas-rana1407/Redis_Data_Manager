@@ -62,3 +62,15 @@ See `requirements.txt` for dependencies.
 ## Notes
 - Uses DeepInfra for LLM and embeddings.
 - Redis must be accessible and configured in `.env`.
+
+# Requirements:
+# - Python 3.11+
+# - redis-py
+# - redisearch-py
+# - gradio
+# - python-dotenv
+# - numpy
+# - pandas
+# - logging (standard library)
+#
+# All search and duplicate detection use RediSearch. No in-memory index logic remains.

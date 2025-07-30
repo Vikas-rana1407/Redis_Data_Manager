@@ -1,60 +1,9 @@
-# In-memory normalized video title index for search
-_normalized_video_title_index = None
-
-def _normalize_video_title_for_index(title: str) -> str:
-    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip()) if title else ''
-
-def _build_normalized_video_title_index():
-    index = {}
-    for key in redis_client.scan_iter("video:*"):
-        try:
-            data = redis_client.json().get(key)
-            if isinstance(data, dict):
-                title = data.get("youtube_title", "")
-                norm = _normalize_video_title_for_index(title)
-                if norm:
-                    index[norm] = (key, data)
-        except Exception:
-            continue
-    return index
-
-def get_normalized_video_title_index():
-    global _normalized_video_title_index
-    if _normalized_video_title_index is None:
-        _normalized_video_title_index = _build_normalized_video_title_index()
-    return _normalized_video_title_index
-# In-memory normalized book title index for search
-_normalized_book_title_index = None
-
-def _normalize_title_for_index(title: str) -> str:
-    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip()) if title else ''
-
-def _build_normalized_book_title_index():
-    index = {}
-    for key in redis_client.scan_iter("book:*"):
-        try:
-            data = redis_client.json().get(key)
-            if isinstance(data, dict):
-                title = data.get("book_title", "")
-                norm = _normalize_title_for_index(title)
-                if norm:
-                    index[norm] = (key, data)
-        except Exception:
-            continue
-    return index
-
-def get_normalized_book_title_index():
-    global _normalized_book_title_index
-    if _normalized_book_title_index is None:
-        _normalized_book_title_index = _build_normalized_book_title_index()
-    return _normalized_book_title_index
-
 # Standard library imports
 import re
 from typing import List, Tuple, Any, Optional
+import numpy as np
 
 # Third-party imports
-from rapidfuzz import process
 import redis.exceptions
 
 # App imports
@@ -63,6 +12,9 @@ from app.utils.logger import get_logger
 
 # Logger setup
 logger = get_logger(__name__)
+
+# ----------------------------- CONSTANTS ----------------------------- #
+FT_SEARCH_CMD = 'FT.SEARCH'
 
 # ----------------------------- DELETE LOGIC ----------------------------- #
 
@@ -111,36 +63,51 @@ def escape_query_string(text: str) -> str:
     """
     return re.sub(r'([@!{}()\[\]\|><"~*:\\])', r'\\\1', text)
 
+def filter_search_term(term: str) -> str:
+    """
+    Remove special characters and extra whitespace from search term for robust RediSearch matching.
+    """
+    return re.sub(r'[^a-zA-Z0-9 ]', '', term).strip().lower()
+
 # ----------------------------- BOOK SEARCH ----------------------------- #
 
 def search_book_by_title(title_query: str) -> Tuple[List[str], List[Any]]:
     """
-    Search books by title using RediSearch with fallback to fuzzy search.
+    Search books by title using RediSearch text search (case/punctuation-insensitive).
 
     Returns empty lists with message if no results found.
     """
-    # Use in-memory normalized index for robust, fast search
-    norm_query = _normalize_title_for_index(title_query)
-    index = get_normalized_book_title_index()
-    matches = []
-    if norm_query in index:
-        key, data = index[norm_query]
-        matches.append((key, data))
-    else:
-        # Fallback: fuzzy match on normalized titles
-        from rapidfuzz import process
-        all_norm_titles = list(index.keys())
-        best_matches = process.extract(norm_query, all_norm_titles, limit=5, score_cutoff=60)
-        match_norms = {m[0] for m in best_matches}
-        matches = [index[n] for n in match_norms if n in index]
-
-    if not matches:
-        logger.info(f"No book results found for query: {title_query}")
-        return [], [{"message": f"❌ No related book results found for: '{title_query}'"}]
-
-    keys = [k for k, _ in matches]
-    data = [d for _, d in matches]
-    return keys, data
+    try:
+        # Filter and normalize query for RediSearch
+        filtered_query = filter_search_term(title_query)
+        query_str = escape_query_string(filtered_query)
+        # Use fuzzy or prefix search if desired, e.g. '%query%'
+        search_query = f'@book_title:{query_str}'
+        args = [
+            'book_idx',
+            search_query,
+            'RETURN', '2', '__key__', 'book_title',
+            'LIMIT', '0', '10',
+        ]
+        logger.info(f"FT.SEARCH args: {args}")
+        res = redis_client.execute_command(FT_SEARCH_CMD, *args)
+        logger.info(f"FT.SEARCH raw response: {res}")
+        if not res or len(res) < 2:
+            logger.info(f"No book results found for query: {title_query}")
+            return [], [{"message": f"❌ No book results found for: '{title_query}'"}]
+        keys = []
+        data = []
+        for i in range(1, len(res), 2):
+            key = res[i]
+            full_data = redis_client.json().get(key)
+            if full_data:
+                keys.append(key)
+                data.append(full_data)
+        logger.info(f"Found {len(keys)} book results for query: {title_query}")
+        return keys, data
+    except Exception as e:
+        logger.error(f"RediSearch error: {e}")
+        return [], [{"message": f"❌ Error searching books with RediSearch: {e}"}]
 
 # ----------------------------- VIDEO SEARCH ----------------------------- #
 
@@ -159,11 +126,10 @@ def extract_video_id(url_or_text: str) -> Optional[str]:
 
 def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[Any]]:
     """
-    Search videos by URL (direct key lookup) or title (RediSearch/fuzzy).
+    Search videos by URL (direct key lookup) or RediSearch text search by title.
 
     Returns empty list with message if nothing found.
     """
-
     video_id = extract_video_id(input_text)
     if video_id:
         key = f"video:{video_id}"
@@ -174,30 +140,89 @@ def search_video_by_title_or_url(input_text: str) -> Tuple[List[str], List[Any]]
         except redis.exceptions.ResponseError as e:
             logger.error(f"Error fetching video key {key}: {e}")
         return [], [{"message": f"❌ No related video found for ID: '{video_id}'"}]
+    try:
+        filtered_query = filter_search_term(input_text)
+        query_str = escape_query_string(filtered_query)
+        search_query = f'@youtube_title:{query_str}'
+        args = [
+            'video_idx',
+            search_query,
+            'RETURN', '2', '__key__', 'youtube_title',
+            'LIMIT', '0', '10',
+        ]
+        logger.info(f"FT.SEARCH args: {args}")
+        res = redis_client.execute_command(FT_SEARCH_CMD, *args)
+        logger.info(f"FT.SEARCH raw response: {res}")
+        if not res or len(res) < 2:
+            return [], [{"message": f"❌ No video results found for: '{input_text}'"}]
+        keys = []
+        data = []
+        for i in range(1, len(res), 2):
+            key = res[i]
+            # Fetch full JSON for each key
+            full_data = redis_client.json().get(key)
+            if full_data:
+                keys.append(key)
+                data.append(full_data)
+        return keys, data
+    except Exception as e:
+        logger.error(f"RediSearch error: {e}")
+        return [], [{"message": f"❌ Error searching videos with RediSearch: {e}"}]
 
-    # Title search using in-memory normalized index
-    norm_query = _normalize_video_title_for_index(input_text)
-    index = get_normalized_video_title_index()
-    matches = []
-    if norm_query in index:
-        key, data = index[norm_query]
-        matches.append((key, data))
-    else:
-        # Fuzzy fallback on normalized titles
-        from rapidfuzz import process
-        all_norm_titles = list(index.keys())
-        best_matches = process.extract(norm_query, all_norm_titles, limit=5, score_cutoff=60)
-        match_norms = {m[0] for m in best_matches}
-        matches = [index[n] for n in match_norms if n in index]
+def normalize_title(title: str) -> str:
+    """
+    Normalize a title by removing special characters and converting to lowercase.
+    """
+    return re.sub(r'[^a-zA-Z0-9 ]', '', title).strip().lower()
 
-    if not matches:
-        logger.info(f"No video results found for query: {input_text}")
-        return [], [{"message": f"❌ No related video results found for: '{input_text}'"}]
+# ----------------------------- BOOK DUPLICATE CHECK ----------------------------- #
 
-    keys = [k for k, _ in matches]
-    data = [d for _, d in matches]
-    return keys, data
+def check_duplicate_by_title(title: str) -> bool:
+    """
+    Check for duplicate book by title using RediSearch text search (case/punctuation-insensitive).
+    Returns True if duplicate exists, False otherwise.
+    """
+    try:
+        filtered_title = filter_search_term(title)
+        query_str = escape_query_string(filtered_title)
+        search_query = f'@book_title:{query_str}'
+        args = [
+            'book_idx',
+            search_query,
+            'LIMIT', '0', '1',
+        ]
+        logger.info(f"FT.SEARCH args for duplicate check: {args}")
+        res = redis_client.execute_command(FT_SEARCH_CMD, *args)
+        logger.info(f"FT.SEARCH raw response for duplicate check: {res}")
+        is_duplicate = bool(res and len(res) > 1)
+        logger.info(f"Duplicate book found: {is_duplicate}")
+        return is_duplicate
+    except Exception as e:
+        logger.error(f"RediSearch error in duplicate check: {e}")
+        return False
 
-def normalize_title(title):
-    import re
-    return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip())
+# ----------------------------- VIDEO DUPLICATE CHECK ----------------------------- #
+
+def check_duplicate_by_video_title(title: str) -> bool:
+    """
+    Check for duplicate video by title using RediSearch text search (case/punctuation-insensitive).
+    Returns True if duplicate exists, False otherwise.
+    """
+    try:
+        filtered_title = filter_search_term(title)
+        query_str = escape_query_string(filtered_title)
+        search_query = f'@video_title:{query_str}'
+        args = [
+            'video_idx',
+            search_query,
+            'LIMIT', '0', '1',
+        ]
+        logger.info(f"FT.SEARCH args for video duplicate check: {args}")
+        result = redis_client.execute_command(FT_SEARCH_CMD, *args)
+        logger.info(f"FT.SEARCH raw response for video duplicate check: {result}")
+        is_duplicate = bool(result and len(result) > 1)
+        logger.info(f"Duplicate video found: {is_duplicate}")
+        return is_duplicate
+    except Exception as e:
+        logger.error(f"RediSearch error in video duplicate check: {e}")
+        return False
