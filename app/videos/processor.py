@@ -80,7 +80,10 @@ def process_transcript(video_id: str, transcript: str):
             url = f"https://www.youtube.com/watch?v={video_id}"
             with yt_dlp.YoutubeDL({'quiet': True, 'nocache': True, 'skip_download': True}) as ydl:
                 info = ydl.extract_info(url, download=False)
-                return info.get("duration", None)
+                if info is not None:
+                    return info.get("duration", None)
+                else:
+                    return None
         except Exception as e:
             logger.warning(f"❌ Duration fetch failed for {video_id}: {e}")
             return None

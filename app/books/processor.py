@@ -145,7 +145,6 @@ def stringify(value):
 def process_book_row(row, failed_ref, duplicates_ref):
     row_snake = {to_snake_case(k): v.strip() for k, v in row.items()}
     row_data = dict(row_snake)
-    row_data["book_title_normalized"] = normalize_title(row_data.get("book_title", ""))
     row_data["searchable_text"] = " ".join([stringify(row_data.get(col, '')) for col in SEARCHABLE_COLUMNS]).strip()
 
     if not row_data.get("book_title") or all(not v for k, v in row_data.items() if k != "book_title"):

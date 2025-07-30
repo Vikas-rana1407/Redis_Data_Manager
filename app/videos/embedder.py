@@ -102,13 +102,9 @@ def process_json_file(filepath):
             return
 
 
-        def normalize_title(title):
-            import re
-            return re.sub(r'[^a-zA-Z0-9]', '', title.lower().strip())
 
         final_json = {
             "youtube_title": data.get("videoTitle", ""),
-            "youtube_title_normalized": normalize_title(data.get("videoTitle", "")),
             "link": f"https://www.youtube.com/watch?v={video_id}",
             "duration": tags.get("duration"),
             "ai_duration": tags.get("duration"),
