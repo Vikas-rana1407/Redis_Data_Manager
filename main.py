@@ -29,8 +29,10 @@ def main():
     logger.info("Server will run on: http://127.0.0.1:7860")
     logger.info(f"Admin username: {os.getenv('ADMIN_USERNAME', 'admin')}")
     logger.info(f"Environment: {os.getenv('ENVIRONMENT', 'development')}")
+    
     # Start background cleanup thread
     start_cleanup_thread()
+    logger.info("Background cleanup thread started")
     # Launch the Gradio app
     launch()
 

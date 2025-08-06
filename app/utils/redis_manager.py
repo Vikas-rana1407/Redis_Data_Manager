@@ -20,7 +20,6 @@ class RedisManager:
             host=config['host'],
             port=config['port'],
             password=config['password'],
-            db=config['db'],
             decode_responses=True
         )
         logger.info('Connected to Redis')
