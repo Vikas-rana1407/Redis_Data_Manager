@@ -91,8 +91,21 @@ def render_add_data_tab():
     with gr.Column():
         # Book Upload Tab
         with gr.Tab("📚Book"):
+            gr.Markdown(
+                """
+                <div style='background:transparent; border:none; padding:0; margin-bottom:12px;'>
+                    <span style='color:#e67e22; font-weight:bold;'>Important Note: The CSV you upload must have the following columns in this exact order and format:</span><br>
+                    <code style='color:inherit; background:var(--color-background-tertiary); padding:2px 4px; border-radius:4px; display:block; margin:6px 0;'>Book Title, Dimension*, Sub-Themes*, Author, Summary, Who is it for, Why you will love it, Zumlos Takeaway, Audience, Difficulty, Format, Tone and Style, Length, Expert Recommended, Clinically Validated, Awards and Recognition, User Goal Alignment*, Challenge Addressed*, Stage of Wellness Journey*, Activity and Engagement Compatibility*, Conversational Keywords*, Emotional and Behavioral Triggers*, Personality Fit*, Recommended Complementary Resources*</code>
+                    <span style='color:#e67e22;'><i>Columns marked with * are required.<br>
+                </div>
+                """,
+                elem_id="book-csv-important-note"
+            )
+            gr.Markdown("<span style='color:#e67e22; font-weight:bold;'>Download Sample CSV:</span>")
+            gr.File(value="Sample_File.csv", label="Click here to download", interactive=False, elem_id="sample-csv-download")
+
             gr.Markdown("### Upload Book CSV")
-            csv_input = gr.File(file_types=[".csv"], label="Upload CSV")
+            csv_input = gr.File(file_types=[".csv"], label="Upload CSV", height=130)
             upload_book_btn = gr.Button("Process & Save Book", variant="primary")
             book_output = gr.Json(label="Processed Book Data (JSON)")
 
