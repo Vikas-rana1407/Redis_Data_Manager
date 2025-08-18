@@ -26,6 +26,6 @@ def get_redis_config() -> Dict[str, Any]:
         'port': int(os.getenv('REDIS_PORT', 6379)),
         'password': os.getenv('REDIS_PASSWORD', None)
     }
-    logger.info(f"Loaded Redis config: {config}")
+    logger.info(f"Loaded Redis config: host={config['host']}, port={config['port']}")
     return config
 
