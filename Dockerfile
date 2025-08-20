@@ -23,7 +23,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
 
 # Expose the port Gradio/your app runs on (default 7860)
-EXPOSE 7860
+EXPOSE 7861
 
 # Set the entrypoint to run your main app
 CMD ["python", "main.py"]
