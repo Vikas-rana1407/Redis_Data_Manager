@@ -9,20 +9,21 @@ import shutil
 # Third-party imports
 import requests
 from dotenv import load_dotenv
+
 from typing import List, Tuple
 
 # App imports
 from app.utils.redis_manager import redis_client
 from app.utils.logger import get_logger
+from app.utils.keyvault_loader import DEEPINFRA_TOKEN
 
 
 logger = get_logger(__name__)
 load_dotenv()
 
 # ----------------- ENV & Constants ----------------- #
-DEEPNFRA_TOKEN = os.getenv("DEEPINFRA_TOKEN")
 EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
-HEADERS = {"Authorization": f"Bearer {DEEPNFRA_TOKEN}"}
+HEADERS = {"Authorization": f"Bearer {DEEPINFRA_TOKEN}"}
 
 redis_json = redis_client.json()
 

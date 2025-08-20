@@ -13,6 +13,7 @@ import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
 from dotenv import load_dotenv
+from app.utils.keyvault_loader import DEEPINFRA_TOKEN
 
 # App imports
 from app.utils.logger import get_logger
@@ -22,7 +23,7 @@ logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()
-DEEPINFRA_TOKEN = os.getenv("DEEPINFRA_TOKEN")
+
 LLM_MODEL = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
 
 def ensure_dirs(dirs):

@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 # App imports
 from app.videos.utils import stringify
 from app.utils.logger import get_logger
+from app.utils.keyvault_loader import DEEPINFRA_TOKEN
 
 # Logger setup
 logger = get_logger(__name__)
@@ -27,7 +28,6 @@ OUTPUT_DIR = "app/data/formatted_jsons"
 EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
 
 REDIS_URL = os.getenv("REDIS_URL")
-DEEPINFRA_TOKEN = os.getenv("DEEPINFRA_TOKEN")
 redis_client = redis.from_url(REDIS_URL, decode_responses=False)
 redis_json = redis_client.json()
 
