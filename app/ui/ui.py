@@ -38,7 +38,7 @@ def main_app():
     logger.info("Main Gradio app UI loaded.")
     return app
 
-def launch():
+def launch(server_name: str = "0.0.0.0", server_port: int = 7860):
     """
     Launches the Gradio app with authentication.
     """
@@ -46,5 +46,6 @@ def launch():
     logger.info("Launching Gradio app with authentication.")
     username = VALID_USERNAME if VALID_USERNAME else "admin"
     password = VALID_PASSWORD if VALID_PASSWORD else "admin"
-    app.launch(auth=(username, password))
+    app.launch(auth=(username, password), server_name=server_name, server_port=server_port)
+
 

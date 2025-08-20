@@ -33,7 +33,7 @@ def main():
     start_cleanup_thread()
     logger.info("Background cleanup thread started")
     # Launch the Gradio app
-    launch()
+    launch(server_name="0.0.0.0", server_port=7860)
 
 if __name__ == "__main__":
     main()
