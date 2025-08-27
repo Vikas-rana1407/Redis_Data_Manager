@@ -16,13 +16,21 @@ class RedisManager:
     """
     def __init__(self):
         config = get_redis_config()
-        self.client = redis.Redis(
-            host=config['host'],
-            port=config['port'],
-            password=config['password'],
-            decode_responses=True
-        )
-        logger.info('Connected to Redis')
+        try:
+            self.client = redis.Redis(
+                host=config['host'],
+                port=config['port'],
+                password=config['password'],
+                decode_responses=True,
+                socket_connect_timeout=5,  # seconds
+                socket_timeout=5
+            )
+            # Test connection
+            self.client.ping()
+            logger.info('Connected to Redis')
+        except Exception as e:
+            logger.critical(f'Failed to connect to Redis: {e}')
+            raise RuntimeError(f'Failed to connect to Redis: {e}')
 
     def get_client(self):
         """

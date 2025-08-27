@@ -9,6 +9,7 @@ from app.utils.logger import get_logger
 
 # Logger setup
 logger = get_logger(__name__)
+NO_RESULTS_FOUND = "No results found"
 
 def handle_book_search(book_title):
     """
@@ -18,7 +19,7 @@ def handle_book_search(book_title):
     keys, data = search_book_by_title(book_title)
     if not keys:
         logger.info(f"No book results found for: {book_title}")
-        return gr.Dropdown(choices=[], value=None), data[0] if data else {"message": "❌ No related book results found."}
+        return gr.Dropdown(choices=[NO_RESULTS_FOUND], value=NO_RESULTS_FOUND), {"message": "❌ No related book results found. Please check your search query or try a different title."}
     return gr.Dropdown(choices=keys, value=keys[0]), data[0]
 
 def handle_video_search(input_text):
@@ -29,7 +30,7 @@ def handle_video_search(input_text):
     keys, data = search_video_by_title_or_url(input_text)
     if not keys:
         logger.info(f"No video results found for: {input_text}")
-        return gr.Dropdown(choices=[], value=None), data[0] if data else {"message": "❌ No related video results found."}
+        return gr.Dropdown(choices=[NO_RESULTS_FOUND], value=NO_RESULTS_FOUND), {"message": "❌ No related video results found. Please check your search query or try a different title or URL."}
     return gr.Dropdown(choices=keys, value=keys[0]), data[0]
 
 def handle_book_dropdown_change(selected_key):
